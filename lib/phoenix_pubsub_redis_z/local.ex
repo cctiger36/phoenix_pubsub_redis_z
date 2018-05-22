@@ -30,9 +30,13 @@ defmodule Phoenix.PubSub.RedisZ.Local do
       |> pools_for_shard(pubsub_server)
 
     :ok = GenServer.call(local, {:monitor, pid, opts})
+
+    if :ets.match_object(local, {topic, :_}, 1) == :"$end_of_table" do
+      :ok = RedisDispatcher.subscribe(pubsub_server, redises_count, pid, topic)
+    end
+
     true = :ets.insert(gc, {pid, topic})
     true = :ets.insert(local, {topic, {pid, opts[:fastlane]}})
-    :ok = RedisDispatcher.subscribe(pubsub_server, redises_count, pid, topic)
 
     :ok
   end
@@ -46,7 +50,10 @@ defmodule Phoenix.PubSub.RedisZ.Local do
 
     true = :ets.match_delete(gc, {pid, topic})
     true = :ets.match_delete(local, {topic, {pid, :_}})
-    :ok = RedisDispatcher.unsubscribe(pubsub_server, redises_count, pid, topic)
+
+    if :ets.match_object(local, {topic, :_}, 1) == :"$end_of_table" do
+      :ok = RedisDispatcher.unsubscribe(pubsub_server, redises_count, pid, topic)
+    end
 
     case :ets.select_count(gc, [{{pid, :_}, [], [true]}]) do
       0 -> :ok = GenServer.call(local, {:demonitor, pid})
