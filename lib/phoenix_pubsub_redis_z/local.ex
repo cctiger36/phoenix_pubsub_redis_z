@@ -10,12 +10,12 @@ defmodule Phoenix.PubSub.RedisZ.Local do
   defdelegate broadcast(fastlane, pubsub_server, pool_size, from, topic, msg),
     to: Phoenix.PubSub.Local
 
+  defdelegate handle_call(request, from, state), to: Phoenix.PubSub.Local
+  defdelegate init(args), to: Phoenix.PubSub.Local
+  defdelegate list(pubsub_server, shard), to: Phoenix.PubSub.Local
   defdelegate subscribers(pubsub_server, topic, shard), to: Phoenix.PubSub.Local
   defdelegate subscribers_with_fastlanes(pubsub_server, topic, shard), to: Phoenix.PubSub.Local
-  defdelegate list(pubsub_server, shard), to: Phoenix.PubSub.Local
   defdelegate subscription(pubsub_server, pool_size, pid), to: Phoenix.PubSub.Local
-  defdelegate init(args), to: Phoenix.PubSub.Local
-  defdelegate handle_call(request, from, state), to: Phoenix.PubSub.Local
 
   def start_link(server_name, gc_name) do
     Logger.info("Starts pubsub local: #{server_name}")
