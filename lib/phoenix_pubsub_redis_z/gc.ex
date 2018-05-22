@@ -7,6 +7,9 @@ defmodule Phoenix.PubSub.RedisZ.GC do
 
   use GenServer
 
+  defdelegate down(gc_server, pid), to: Phoenix.PubSub.GC
+  defdelegate handle_call(request, from, state), to: Phoenix.PubSub.GC
+
   def start_link(server_name, local_name, pubsub_server, redises_count) do
     Logger.info("Starts pubsub gc: #{server_name}")
 
@@ -17,10 +20,6 @@ defmodule Phoenix.PubSub.RedisZ.GC do
     )
   end
 
-  def down(gc_server, pid) when is_atom(gc_server) do
-    GenServer.cast(gc_server, {:down, pid})
-  end
-
   def init({server_name, local_name, pubsub_server, redises_count}) do
     {:ok,
      %{
@@ -29,10 +28,6 @@ defmodule Phoenix.PubSub.RedisZ.GC do
        pubsub_server: pubsub_server,
        redises_count: redises_count
      }}
-  end
-
-  def handle_call({:subscription, pid}, _from, state) do
-    {:reply, subscription(state.pids, pid), state}
   end
 
   def handle_cast({:down, pid}, state) do
@@ -50,13 +45,5 @@ defmodule Phoenix.PubSub.RedisZ.GC do
     end
 
     {:noreply, state}
-  end
-
-  defp subscription(pids_table, pid) do
-    try do
-      :ets.lookup_element(pids_table, pid, 2)
-    catch
-      :error, :badarg -> []
-    end
   end
 end
