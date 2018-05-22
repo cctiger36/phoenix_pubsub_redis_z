@@ -26,6 +26,7 @@ defmodule PhoenixPubsubRedisZ.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:ex_doc, "~> 0.18.3", only: :dev, runtime: false},
       {:phoenix_pubsub, "~> 1.0"},
       {:poolboy, "~> 1.5 or ~> 1.6"},
       {:redix, "~> 0.6.1"},
