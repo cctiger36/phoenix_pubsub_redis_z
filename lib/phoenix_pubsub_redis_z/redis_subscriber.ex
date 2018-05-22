@@ -51,6 +51,10 @@ defmodule Phoenix.PubSub.RedisZ.RedisSubscriber do
     {:noreply, state}
   end
 
+  def handle_info({:redix_pubsub, redix_pid, :unsubscribed, _}, %{redix_pid: redix_pid} = state) do
+    {:noreply, state}
+  end
+
   def handle_info(
         {:redix_pubsub, redix_pid, :disconnected, %{reason: reason}},
         %{redix_pid: redix_pid} = state
