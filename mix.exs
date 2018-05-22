@@ -7,7 +7,12 @@ defmodule PhoenixPubsubRedisZ.MixProject do
       version: "0.1.0",
       elixir: "~> 1.6",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      description: description(),
+      name: "PhoenixPubsubRedisZ",
+      package: package(),
+      source_url: "https://github.com/cctiger36/phoenix_pubsub_redis_z",
+      homepage_url: "https://github.com/cctiger36/phoenix_pubsub_redis_z"
     ]
   end
 
@@ -26,5 +31,19 @@ defmodule PhoenixPubsubRedisZ.MixProject do
       {:redix, "~> 0.6.1"},
       {:redix_pubsub, "~> 0.4.2"}
     ]
+  end
+
+  defp package do
+    [
+      files: ["LICENSE", "README.md", "mix.exs", "lib"],
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/cctiger36/phoenix_pubsub_redis_z"},
+      maintainers: ["cctiger36 <cctiger36@gmail.com>"],
+      name: "phoenix_pubsub_redis_z"
+    ]
+  end
+
+  defp description do
+    "Yet another Redis PubSub adapter for Phoenix. Supports sharding across multiple redis nodes."
   end
 end
