@@ -12,7 +12,9 @@ defmodule PhoenixPubsubRedisZ.MixProject do
       name: "PhoenixPubsubRedisZ",
       package: package(),
       source_url: "https://github.com/cctiger36/phoenix_pubsub_redis_z",
-      homepage_url: "https://github.com/cctiger36/phoenix_pubsub_redis_z"
+      homepage_url: "https://github.com/cctiger36/phoenix_pubsub_redis_z",
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [coveralls: :test]
     ]
   end
 
@@ -27,6 +29,7 @@ defmodule PhoenixPubsubRedisZ.MixProject do
   defp deps do
     [
       {:ex_doc, "~> 0.18.3", only: :dev, runtime: false},
+      {:inner_cotton, "~> 0.2"},
       {:phoenix_pubsub, "~> 1.0"},
       {:poolboy, "~> 1.5 or ~> 1.6"},
       {:redix, "~> 0.6.1"},
