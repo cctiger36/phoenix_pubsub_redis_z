@@ -6,8 +6,10 @@ defmodule Phoenix.PubSub.RedisZ.LocalSupervisor do
 
   use Supervisor
 
+  @spec start_link(keyword) :: Supervisor.on_start()
   def start_link(options), do: Supervisor.start_link(__MODULE__, options)
 
+  @spec init(keyword) :: {:ok, {:supervisor.sup_flags(), [:supervisor.child_spec()]}} | :ignore
   def init(options) do
     server = options[:server_name]
     ^server = :ets.new(server, [:set, :named_table, read_concurrency: true])
