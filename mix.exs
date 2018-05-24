@@ -13,6 +13,11 @@ defmodule PhoenixPubsubRedisZ.MixProject do
       package: package(),
       source_url: "https://github.com/cctiger36/phoenix_pubsub_redis_z",
       homepage_url: "https://github.com/cctiger36/phoenix_pubsub_redis_z",
+      docs: [
+        main: "readme",
+        extras: ["README.md"]
+      ],
+      dialyzer: [ignore_warnings: "dialyzer.ignore-warnings"],
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: [coveralls: :test]
     ]

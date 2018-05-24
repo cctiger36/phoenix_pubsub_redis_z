@@ -36,11 +36,13 @@ defmodule Phoenix.PubSub.RedisZ do
 
   @default_publisher_pool_size 8
 
+  @spec start_link(atom, keyword) :: Supervisor.on_start()
   def start_link(name, options) do
     supervisor_name = Module.concat(name, Supervisor)
     Supervisor.start_link(__MODULE__, [name, options], name: supervisor_name)
   end
 
+  @spec init(list) :: {:ok, {:supervisor.sup_flags(), [:supervisor.child_spec()]}} | :ignore
   def init([server_name, options]) do
     node_ref = :crypto.strong_rand_bytes(24)
     redises = parse_redis_urls(options[:redis_urls])
@@ -71,9 +73,11 @@ defmodule Phoenix.PubSub.RedisZ do
   end
 
   @doc false
+  @spec node_name(node | nil) :: node
   def node_name(nil), do: node()
   def node_name(configured_name), do: configured_name
 
+  @spec parse_redis_urls([binary]) :: [keyword]
   defp parse_redis_urls(urls) do
     for url <- urls do
       info = URI.parse(url)
@@ -90,6 +94,7 @@ defmodule Phoenix.PubSub.RedisZ do
     end
   end
 
+  @spec validate_node_name!(keyword) :: node | no_return
   defp validate_node_name!(options) do
     case options[:node_name] || node() do
       name when name in [nil, :nonode@nohost] ->
