@@ -48,7 +48,7 @@ defmodule Phoenix.PubSub.RedisZ.GC do
         true = :ets.match_delete(state.topics, {topic, {pid, :_}})
 
         if :ets.match_object(state.topics, {topic, :_}, 1) == :"$end_of_table" do
-          RedisDispatcher.unsubscribe(state.pubsub_server, state.redises_count, pid, topic)
+          :ok = RedisDispatcher.unsubscribe(state.pubsub_server, state.redises_count, pid, topic)
         end
       end
 
