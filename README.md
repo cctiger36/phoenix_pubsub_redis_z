@@ -2,6 +2,14 @@
 
 Yet another Redis PubSub adapter for Phoenix. Supports sharding across multiple redis nodes.
 
+## Why made another one?
+
+The original [phoenix_pubsub_redis](https://github.com/phoenixframework/phoenix_pubsub_redis) will subscribe to the same topic (the namespace) from all the Phoenix nodes. So whatever you publish, the data will be sent to all of them. If there are hundreds of Phoenix nodes, the CPU usage and the network usage of the Redis will become incredibly high and impossible to scale it.
+
+So we have made this adapter, which will subscribe to the specific topic of the Phoenix channel when it is creating, and unsubscribe to that topic after the Phoenix channel is shut down. If you publish something to a topic, the data will only be sent to the nodes which have the Phoenix channels subscribing to that topic.
+
+Also, we have added a feature for sharding, base on the topics. You can simply do a load balancing by adding Redis nodes.
+
 ## Installation
 
 ```elixir
