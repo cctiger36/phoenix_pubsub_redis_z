@@ -1,5 +1,7 @@
 # PhoenixPubsubRedisZ
 
+[![Build Status](https://travis-ci.org/cctiger36/phoenix_pubsub_redis_z.svg?branch=master)](https://travis-ci.org/cctiger36/phoenix_pubsub_redis_z)
+
 Yet another Redis PubSub adapter for Phoenix. Supports sharding across multiple redis nodes.
 
 ## Why made another one?
