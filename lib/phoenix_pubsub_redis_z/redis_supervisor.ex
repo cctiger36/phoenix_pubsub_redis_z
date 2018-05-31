@@ -24,7 +24,7 @@ defmodule Phoenix.PubSub.RedisZ.RedisSupervisor do
           name: {:local, publisher_name},
           worker_module: Redix,
           size: options[:publisher_pool_size],
-          max_overflow: options[:max_overflow]
+          max_overflow: options[:publisher_max_overflow]
         ]
 
         shard_children = [
