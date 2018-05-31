@@ -5,3 +5,5 @@ elixir:
 otp_release:
   - "19.3"
   - "20.2"
+services:
+  - redis-server
