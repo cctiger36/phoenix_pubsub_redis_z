@@ -1,7 +1,7 @@
 defmodule Phoenix.PubSub.RedisZ do
   @moduledoc false
 
-  alias Phoenix.PubSub.RedisZ.{LocalSupervisor, RedisSupervisor}
+  alias __MODULE__.{LocalSupervisor, RedisSupervisor}
 
   use Supervisor
 
