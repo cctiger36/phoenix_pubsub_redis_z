@@ -47,13 +47,34 @@ defmodule PhoenixPubsubRedisZTest do
     assert Local.subscribers(pubsub_server, "topic02", 0) == []
   end
 
+  test "broadcast_from/4 and broadcast_from!/4", %{pubsub_server: pubsub_server} do
+    pid = spawn_pid()
+    :ok = PubSub.subscribe(pubsub_server, self(), "topic03")
+    # wait until Redix subscribed
+    Process.sleep(100)
+    :ok = PubSub.broadcast_from(pubsub_server, pid, "topic03", :ping)
+    assert_receive :ping
+    :ok = PubSub.broadcast_from!(pubsub_server, pid, "topic03", :ping)
+    assert_receive :ping
+  end
+
+  test "broadcast_from/4 and broadcast_from!/4 skips sender", %{pubsub_server: pubsub_server} do
+    :ok = PubSub.subscribe(pubsub_server, self(), "topic04")
+    # wait until Redix subscribed
+    Process.sleep(100)
+    :ok = PubSub.broadcast_from(pubsub_server, self(), "topic04", :ping)
+    refute_receive :ping
+    :ok = PubSub.broadcast_from!(pubsub_server, self(), "topic04", :ping)
+    refute_receive :ping
+  end
+
   test "processes automatically removed from topic when killed", %{pubsub_server: pubsub_server} do
     pid = spawn_pid()
-    :ok = PubSub.subscribe(pubsub_server, pid, "topic03")
-    assert Local.subscribers(pubsub_server, "topic03", 0) == [pid]
+    :ok = PubSub.subscribe(pubsub_server, pid, "topic05")
+    assert Local.subscribers(pubsub_server, "topic05", 0) == [pid]
     Process.exit(pid, :kill)
     # wait until GC removes dead pid
     Process.sleep(100)
-    assert Local.subscribers(pubsub_server, "topic03", 0) == []
+    assert Local.subscribers(pubsub_server, "topic05", 0) == []
   end
 end
