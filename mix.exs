@@ -5,7 +5,7 @@ defmodule PhoenixPubsubRedisZ.MixProject do
     [
       app: :phoenix_pubsub_redis_z,
       version: "0.1.1",
-      elixir: "~> 1.5",
+      elixir: "~> 1.6",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: description(),
@@ -17,7 +17,11 @@ defmodule PhoenixPubsubRedisZ.MixProject do
         main: "readme",
         extras: ["README.md"]
       ],
-      dialyzer: [ignore_warnings: "dialyzer.ignore-warnings"],
+      dialyzer: [
+        flags: [:no_undefined_callbacks],
+        ignore_warnings: "dialyzer.ignore-warnings",
+        remove_defaults: [:unknown]
+      ],
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: [coveralls: :test]
     ]
@@ -33,7 +37,7 @@ defmodule PhoenixPubsubRedisZ.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ex_doc, "~> 0.18.3", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.18", only: :dev, runtime: false},
       {:inner_cotton, "~> 0.2", only: [:dev, :test]},
       {:phoenix_pubsub, "~> 1.0"},
       {:poolboy, "~> 1.5 or ~> 1.6"},
