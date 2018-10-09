@@ -18,7 +18,7 @@ Also, we have added a feature for sharding, base on the topics. You can simply d
 # mix.exs
 def deps do
   [
-    {:phoenix_pubsub_redis_z, "~> 0.1.0"}
+    {:phoenix_pubsub_redis_z, "~> 0.2.0"}
   ]
 end
 ```
