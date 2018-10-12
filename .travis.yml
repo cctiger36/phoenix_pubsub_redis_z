@@ -7,3 +7,6 @@ elixir:
 otp_release: 
   - "20.3"
   - "21.0"
+script:
+  - mix cotton.lint
+  - MIX_ENV=test mix coveralls.travis
