@@ -7,13 +7,17 @@ defmodule Phoenix.PubSub.RedisZ do
 
   @default_publisher_pool_size 8
 
-  @doc false
   @spec start_link(keyword) :: Supervisor.on_start()
   def start_link(options) do
     unless is_atom(options[:name]),
       do: raise(ArgumentError, message: "Should have is_atom(:name)")
 
-    name = options[:name]
+    {name, options} = pop_in(options[:name])
+    start_link(name, options)
+  end
+
+  @spec start_link(atom, keyword) :: Supervisor.on_start()
+  def start_link(name, options) do
     supervisor_name = Module.concat(name, Supervisor)
     Supervisor.start_link(__MODULE__, [name, options], name: supervisor_name)
   end
