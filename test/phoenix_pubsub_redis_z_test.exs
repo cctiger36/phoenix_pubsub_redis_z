@@ -14,7 +14,7 @@ defmodule PhoenixPubsubRedisZTest do
 
     {:ok, _} =
       RedisZ.start_link(
-        pubsub_server,
+        name: pubsub_server,
         redis_urls: [
           "redis://localhost:6379/0",
           "redis://localhost:6379/1",

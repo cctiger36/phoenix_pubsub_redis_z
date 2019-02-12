@@ -8,13 +8,17 @@ defmodule Phoenix.PubSub.RedisZ do
   @default_publisher_pool_size 8
 
   @doc false
-  @spec start_link(atom, keyword) :: Supervisor.on_start()
-  def start_link(name, options) do
+  @spec start_link(keyword) :: Supervisor.on_start()
+  def start_link(options) do
+    unless is_atom(options[:name]),
+      do: raise(ArgumentError, message: "Should have is_atom(:name)")
+
+    name = options[:name]
     supervisor_name = Module.concat(name, Supervisor)
     Supervisor.start_link(__MODULE__, [name, options], name: supervisor_name)
   end
 
-  @spec init(list) :: {:ok, {:supervisor.sup_flags(), [:supervisor.child_spec()]}} | :ignore
+  @impl Supervisor
   def init([server_name, options]) do
     node_ref = :crypto.strong_rand_bytes(24)
     redises = parse_redis_urls(options[:redis_urls])

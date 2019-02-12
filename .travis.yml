@@ -1,12 +1,12 @@
 language: elixir
-services: 
-  - redis-server
 elixir: 
-  - "1.6"
   - "1.7"
+  - "1.8"
 otp_release: 
   - "20.3"
-  - "21.0"
-script:
-  - mix cotton.lint
-  - MIX_ENV=test mix coveralls.travis
+  - "21.2"
+script: 
+  - "mix cotton.lint"
+  - "mix coveralls.travis"
+services: 
+  - "redis-server"
