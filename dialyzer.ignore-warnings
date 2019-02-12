@@ -1,1 +1,0 @@
-lib/phoenix_pubsub_redis_z/redis_publisher.ex:32: The pattern {'error', #{'reason':='closed', '__struct__':='Elixir.Redix.ConnectionError'}} can never match the type {'error',atom()}

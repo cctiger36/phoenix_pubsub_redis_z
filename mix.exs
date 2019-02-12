@@ -4,8 +4,8 @@ defmodule PhoenixPubsubRedisZ.MixProject do
   def project do
     [
       app: :phoenix_pubsub_redis_z,
-      version: "0.2.0",
-      elixir: "~> 1.6",
+      version: "0.3.0",
+      elixir: "~> 1.7",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: description(),
@@ -23,7 +23,10 @@ defmodule PhoenixPubsubRedisZ.MixProject do
         remove_defaults: [:unknown]
       ],
       test_coverage: [tool: ExCoveralls],
-      preferred_cli_env: [coveralls: :test]
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.travis": :test
+      ]
     ]
   end
 
@@ -40,9 +43,8 @@ defmodule PhoenixPubsubRedisZ.MixProject do
       {:ex_doc, "~> 0.19", only: :dev, runtime: false},
       {:inner_cotton, "~> 0.3", only: [:dev, :test]},
       {:phoenix_pubsub, "~> 1.1"},
-      {:poolboy, "~> 1.5 or ~> 1.6"},
-      {:redix, "~> 0.6.1"},
-      {:redix_pubsub, "~> 0.4.2"}
+      {:poolboy, "~> 1.5"},
+      {:redix, "~> 0.9"}
     ]
   end
 
