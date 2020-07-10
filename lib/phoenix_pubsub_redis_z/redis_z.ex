@@ -1,7 +1,8 @@
 defmodule Phoenix.PubSub.RedisZ do
   @moduledoc false
 
-  alias __MODULE__.{LocalSupervisor, RedisSupervisor}
+  alias __MODULE__.{RedisSupervisor}
+  alias Phoenix.PubSub.Adapter
 
   use Supervisor
 
@@ -12,32 +13,19 @@ defmodule Phoenix.PubSub.RedisZ do
     unless is_atom(options[:name]),
       do: raise(ArgumentError, message: "Should have is_atom(:name)")
 
-    {name, options} = pop_in(options[:name])
-    start_link(name, options)
-  end
-
-  @spec start_link(atom, keyword) :: Supervisor.on_start()
-  def start_link(name, options) do
-    supervisor_name = Module.concat(name, Supervisor)
-    Supervisor.start_link(__MODULE__, [name, options], name: supervisor_name)
+    adapter_name = Keyword.fetch!(options, :adapter_name)
+    supervisor_name = Module.concat(adapter_name, "Supervisor")
+    Supervisor.start_link(__MODULE__, options, name: supervisor_name)
   end
 
   @impl Supervisor
-  def init([server_name, options]) do
+  def init(options) do
+    adapter_name = Keyword.fetch!(options, :name)
     node_ref = :crypto.strong_rand_bytes(24)
     redises = parse_redis_urls(options[:redis_urls])
 
-    local_server_options = [
-      server_name: server_name,
-      node_ref: node_ref,
-      pool_size: options[:pool_size] || 1,
-      redises_count: length(redises),
-      node_name: validate_node_name!(options),
-      fastlane: options[:fastlane]
-    ]
-
     redis_server_options = [
-      pubsub_server: server_name,
+      pubsub_server: adapter_name,
       node_ref: node_ref,
       redises: redises,
       publisher_pool_size: options[:publisher_pool_size] || @default_publisher_pool_size,
@@ -45,7 +33,6 @@ defmodule Phoenix.PubSub.RedisZ do
     ]
 
     children = [
-      supervisor(LocalSupervisor, [local_server_options]),
       supervisor(RedisSupervisor, [redis_server_options])
     ]
 
@@ -83,5 +70,14 @@ defmodule Phoenix.PubSub.RedisZ do
       name ->
         name
     end
+  end
+
+  @impl Adapter
+  def broadcast(adapter_name, topic, message, dispatcher) do
+    RedisDispatcher.broadcast(adapter_name, topic, message, dispatcher)
+  end
+
+  @impl Adapter
+  def direct_broadcast(adapter_name, node_name, topic, message, dispatcher) do
   end
 end

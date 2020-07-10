@@ -16,17 +16,16 @@ defmodule Phoenix.PubSub.RedisZ.RedisDispatcher do
     GenServer.call(subscriber, {:unsubscribe, pid, topic})
   end
 
-  @spec broadcast(term, atom, pos_integer, pos_integer, reference, pid, binary, map) ::
+  @spec broadcast(atom, pos_integer, pos_integer, reference, pid, binary, map) ::
           :ok | {:error, term}
-  def broadcast(fastlane, pubsub_server, pool_size, redises_count, node_ref, from, topic, msg) do
+  def broadcast(pubsub_server, pool_size, redises_count, node_ref, from, topic, msg) do
     publisher = select_publisher(pubsub_server, redises_count, topic)
-    RedisPublisher.broadcast(fastlane, publisher, pool_size, node_ref, from, topic, msg)
+    RedisPublisher.broadcast(publisher, pool_size, node_ref, from, topic, msg)
   end
 
-  @spec direct_broadcast(term, atom, pos_integer, pos_integer, reference, atom, pid, binary, map) ::
+  @spec direct_broadcast(atom, pos_integer, pos_integer, reference, atom, pid, binary, map) ::
           :ok | {:error, term}
   def direct_broadcast(
-        fastlane,
         pubsub_server,
         pool_size,
         redises_count,
@@ -39,7 +38,6 @@ defmodule Phoenix.PubSub.RedisZ.RedisDispatcher do
     publisher = select_publisher(pubsub_server, redises_count, topic)
 
     RedisPublisher.direct_broadcast(
-      fastlane,
       publisher,
       pool_size,
       node_ref,
