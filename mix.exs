@@ -42,7 +42,7 @@ defmodule PhoenixPubsubRedisZ.MixProject do
     [
       {:ex_doc, "~> 0.19", only: :dev, runtime: false},
       {:inner_cotton, "~> 0.3", only: [:dev, :test]},
-      {:phoenix_pubsub, "~> 1.1"},
+      {:phoenix_pubsub, "~> 2.0"},
       {:poolboy, "~> 1.5"},
       {:redix, "~> 0.9"}
     ]
