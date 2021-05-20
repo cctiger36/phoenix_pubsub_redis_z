@@ -45,11 +45,11 @@ defmodule Phoenix.PubSub.RedisZ do
     ]
 
     children = [
-      supervisor(LocalSupervisor, [local_server_options]),
-      supervisor(RedisSupervisor, [redis_server_options])
+      {LocalSupervisor, local_server_options},
+      {RedisSupervisor, redis_server_options}
     ]
 
-    supervise(children, strategy: :rest_for_one)
+    Supervisor.init(children, strategy: :one_for_one)
   end
 
   @doc false

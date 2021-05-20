@@ -44,17 +44,16 @@ defmodule Phoenix.PubSub.RedisZ.LocalSupervisor do
         true = :ets.insert(server, {shard, {local_shard_name, gc_shard_name}})
 
         shard_children = [
-          worker(GC, [gc_shard_name, local_shard_name, server, options[:redises_count]]),
-          worker(Local, [local_shard_name, gc_shard_name])
+          {GC, [gc_shard_name, local_shard_name, server, options[:redises_count]]},
+          {Local, [local_shard_name, gc_shard_name]}
         ]
 
-        supervisor(
-          Supervisor,
-          [shard_children, [strategy: :one_for_all]],
+        Supervisor.child_spec(
+          {Supervisor, [shard_children, [strategy: :one_for_all]]},
           id: {__MODULE__, shard}
         )
       end
 
-    supervise(children, strategy: :one_for_one)
+    Supervisor.init(children, strategy: :one_for_one)
   end
 end

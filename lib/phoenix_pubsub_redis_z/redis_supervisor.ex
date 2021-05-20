@@ -28,17 +28,16 @@ defmodule Phoenix.PubSub.RedisZ.RedisSupervisor do
         ]
 
         shard_children = [
-          worker(RedisSubscriber, [subscriber_name, subscriber_options]),
+          {RedisSubscriber, [subscriber_name, subscriber_options]},
           :poolboy.child_spec(publisher_name, publisher_pool_options, redis_options)
         ]
 
-        supervisor(
-          Supervisor,
-          [shard_children, [strategy: :one_for_all]],
+        Supervisor.child_spec(
+          {Supervisor, [shard_children, [strategy: :one_for_all]]},
           id: {__MODULE__, shard}
         )
       end)
 
-    supervise(children, strategy: :one_for_one)
+    Supervisor.init(children, strategy: :one_for_one)
   end
 end

@@ -29,27 +29,27 @@ defmodule PhoenixPubsubRedisZTest do
   test "#subscribe, #unsubscribe", %{pubsub_server: pubsub_server} do
     pid = spawn_pid()
     assert Local.subscribers(pubsub_server, "topic01", 0) == []
-    assert PubSub.subscribe(pubsub_server, pid, "topic01") == :ok
+    assert PubSub.subscribe(pubsub_server, "topic01") == :ok
     assert Local.subscribers(pubsub_server, "topic01", 0) == [pid]
-    assert PubSub.unsubscribe(pubsub_server, pid, "topic01") == :ok
+    assert PubSub.unsubscribe(pubsub_server, "topic01") == :ok
     assert Local.subscribers(pubsub_server, "topic01", 0) == []
   end
 
   test "broadcast/3 and broadcast!/3", %{pubsub_server: pubsub_server} do
-    :ok = PubSub.subscribe(pubsub_server, self(), "topic02")
+    :ok = PubSub.subscribe(pubsub_server, "topic02")
     # wait until Redix subscribed
     Process.sleep(100)
     :ok = PubSub.broadcast(pubsub_server, "topic02", :ping)
     assert_receive :ping
     :ok = PubSub.broadcast!(pubsub_server, "topic02", :ping)
     assert_receive :ping
-    :ok = PubSub.unsubscribe(pubsub_server, self(), "topic02")
+    :ok = PubSub.unsubscribe(pubsub_server, "topic02")
     assert Local.subscribers(pubsub_server, "topic02", 0) == []
   end
 
   test "broadcast_from/4 and broadcast_from!/4", %{pubsub_server: pubsub_server} do
     pid = spawn_pid()
-    :ok = PubSub.subscribe(pubsub_server, self(), "topic03")
+    :ok = PubSub.subscribe(pubsub_server, "topic03")
     # wait until Redix subscribed
     Process.sleep(100)
     :ok = PubSub.broadcast_from(pubsub_server, pid, "topic03", :ping)
@@ -59,7 +59,7 @@ defmodule PhoenixPubsubRedisZTest do
   end
 
   test "broadcast_from/4 and broadcast_from!/4 skips sender", %{pubsub_server: pubsub_server} do
-    :ok = PubSub.subscribe(pubsub_server, self(), "topic04")
+    :ok = PubSub.subscribe(pubsub_server, "topic04")
     # wait until Redix subscribed
     Process.sleep(100)
     :ok = PubSub.broadcast_from(pubsub_server, self(), "topic04", :ping)
@@ -70,7 +70,7 @@ defmodule PhoenixPubsubRedisZTest do
 
   test "processes automatically removed from topic when killed", %{pubsub_server: pubsub_server} do
     pid = spawn_pid()
-    :ok = PubSub.subscribe(pubsub_server, pid, "topic05")
+    :ok = PubSub.subscribe(pubsub_server, "topic05")
     assert Local.subscribers(pubsub_server, "topic05", 0) == [pid]
     Process.exit(pid, :kill)
     # wait until GC removes dead pid
