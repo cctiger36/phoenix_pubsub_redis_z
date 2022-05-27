@@ -1,61 +1,73 @@
 defmodule Phoenix.PubSub.RedisZ do
   @moduledoc false
 
-  alias __MODULE__.{LocalSupervisor, RedisSupervisor}
+  alias __MODULE__.{LocalSupervisor, RedisDispatcher, RedisSupervisor}
 
   use Supervisor
 
+  @behaviour Phoenix.PubSub.Adapter
+  @default_local_pool_size 2
   @default_publisher_pool_size 8
 
+  @impl Phoenix.PubSub.Adapter
+  defdelegate node_name(adapter_name), to: RedisDispatcher
+
+  @impl Phoenix.PubSub.Adapter
+  defdelegate broadcast(adapter_name, topic, message, dispatcher), to: RedisDispatcher
+
+  @impl Phoenix.PubSub.Adapter
+  defdelegate direct_broadcast(adapter_name, node_name, topic, message, dispatcher),
+    to: RedisDispatcher
+
   @spec start_link(keyword) :: Supervisor.on_start()
-  def start_link(options) do
-    unless is_atom(options[:name]),
-      do: raise(ArgumentError, message: "Should have is_atom(:name)")
-
-    {name, options} = pop_in(options[:name])
-    start_link(name, options)
-  end
-
-  @spec start_link(atom, keyword) :: Supervisor.on_start()
-  def start_link(name, options) do
-    supervisor_name = Module.concat(name, Supervisor)
-    Supervisor.start_link(__MODULE__, [name, options], name: supervisor_name)
+  def start_link(opts) do
+    adapter_name = Keyword.fetch!(opts, :adapter_name)
+    supervisor_name = Module.concat(adapter_name, "Supervisor")
+    Supervisor.start_link(__MODULE__, opts, name: supervisor_name)
   end
 
   @impl Supervisor
-  def init([server_name, options]) do
-    node_ref = :crypto.strong_rand_bytes(24)
-    redises = parse_redis_urls(options[:redis_urls])
+  def init(opts) do
+    pubsub_name = Keyword.fetch!(opts, :name)
+    adapter_name = Keyword.fetch!(opts, :adapter_name)
+    compression_level = Keyword.get(opts, :compression_level, 0)
+    local_pool_size = Keyword.get(opts, :local_pool_size, @default_local_pool_size)
+    publisher_pool_size = Keyword.get(opts, :publisher_pool_size, @default_publisher_pool_size)
+
+    node_name = opts[:node_name] || node()
+    validate_node_name!(node_name)
+    redises = parse_redis_urls(opts[:redis_urls])
+
+    :ets.new(adapter_name, [:public, :named_table, read_concurrency: true])
+    :ets.insert(adapter_name, {:node_name, node_name})
+    :ets.insert(adapter_name, {:compression_level, compression_level})
+    :ets.insert(adapter_name, {:local_pool_size, local_pool_size})
+    :ets.insert(adapter_name, {:redises, redises})
+    :ets.insert(adapter_name, {:redises_count, length(redises)})
 
     local_server_options = [
-      server_name: server_name,
-      node_ref: node_ref,
-      pool_size: options[:pool_size] || 1,
-      redises_count: length(redises),
-      node_name: validate_node_name!(options),
-      fastlane: options[:fastlane]
+      pubsub_name: pubsub_name,
+      adapter_name: adapter_name,
+      node_name: node_name,
+      pool_size: local_pool_size,
+      redises_count: length(redises)
     ]
 
     redis_server_options = [
-      pubsub_server: server_name,
-      node_ref: node_ref,
+      pubsub_name: pubsub_name,
+      adapter_name: adapter_name,
+      node_name: node_name,
       redises: redises,
-      publisher_pool_size: options[:publisher_pool_size] || @default_publisher_pool_size,
-      publisher_max_overflow: options[:publisher_max_overflow] || 0
+      publisher_pool_size: publisher_pool_size
     ]
 
     children = [
-      supervisor(LocalSupervisor, [local_server_options]),
-      supervisor(RedisSupervisor, [redis_server_options])
+      {LocalSupervisor, local_server_options},
+      {RedisSupervisor, redis_server_options}
     ]
 
-    supervise(children, strategy: :rest_for_one)
+    Supervisor.init(children, strategy: :rest_for_one)
   end
-
-  @doc false
-  @spec node_name(node | nil) :: node
-  def node_name(nil), do: node()
-  def node_name(configured_name), do: configured_name
 
   @spec parse_redis_urls([binary]) :: [keyword]
   defp parse_redis_urls(urls) do
@@ -74,14 +86,12 @@ defmodule Phoenix.PubSub.RedisZ do
     end
   end
 
-  @spec validate_node_name!(keyword) :: node | no_return
-  defp validate_node_name!(options) do
-    case options[:node_name] || node() do
-      name when name in [nil, :nonode@nohost] ->
-        raise ArgumentError, ":node_name is a required option for unnamed nodes"
-
-      name ->
-        name
+  @spec validate_node_name!(atom) :: :ok | no_return
+  defp validate_node_name!(node_name) do
+    if node_name in [nil, :nonode@nohost] do
+      raise ArgumentError, ":node_name is a required option for unnamed nodes"
     end
+
+    :ok
   end
 end

@@ -2,61 +2,66 @@
 defmodule Phoenix.PubSub.RedisZ.RedisDispatcher do
   @moduledoc false
 
+  alias Phoenix.PubSub
   alias Phoenix.PubSub.RedisZ.{RedisPublisher, RedisSubscriber}
 
-  @spec subscribe(atom, pos_integer, pid, binary) :: :ok
-  def subscribe(pubsub_server, redises_count, pid, topic) do
-    subscriber = select_subscriber(pubsub_server, redises_count, topic)
+  @spec subscribe(atom, pid, binary) :: :ok
+  def subscribe(pubsub_name, pid, topic) do
+    subscriber = select_subscriber(pubsub_name, topic)
     GenServer.call(subscriber, {:subscribe, pid, topic})
   end
 
-  @spec unsubscribe(atom, pos_integer, pid, binary) :: :ok
-  def unsubscribe(pubsub_server, redises_count, pid, topic) do
-    subscriber = select_subscriber(pubsub_server, redises_count, topic)
+  @spec unsubscribe(atom, pid, binary) :: :ok
+  def unsubscribe(pubsub_name, pid, topic) do
+    subscriber = select_subscriber(pubsub_name, topic)
     GenServer.call(subscriber, {:unsubscribe, pid, topic})
   end
 
-  @spec broadcast(term, atom, pos_integer, pos_integer, reference, pid, binary, map) ::
+  @spec broadcast(atom, PubSub.topic(), PubSub.message(), PubSub.dispatcher()) ::
           :ok | {:error, term}
-  def broadcast(fastlane, pubsub_server, pool_size, redises_count, node_ref, from, topic, msg) do
-    publisher = select_publisher(pubsub_server, redises_count, topic)
-    RedisPublisher.broadcast(fastlane, publisher, pool_size, node_ref, from, topic, msg)
+  def broadcast(adapter_name, topic, message, dispatcher) do
+    pool_name = select_publisher_pool(adapter_name, topic)
+    RedisPublisher.broadcast(pool_name, adapter_name, topic, message, dispatcher)
   end
 
-  @spec direct_broadcast(term, atom, pos_integer, pos_integer, reference, atom, pid, binary, map) ::
-          :ok | {:error, term}
-  def direct_broadcast(
-        fastlane,
-        pubsub_server,
-        pool_size,
-        redises_count,
-        node_ref,
-        node_name,
-        from,
-        topic,
-        msg
-      ) do
-    publisher = select_publisher(pubsub_server, redises_count, topic)
+  @spec direct_broadcast(
+          atom,
+          PubSub.node_name(),
+          PubSub.topic(),
+          PubSub.message(),
+          PubSub.dispatcher()
+        ) :: :ok | {:error, term}
+  def direct_broadcast(adapter_name, node_name, topic, message, dispatcher) do
+    pool_name = select_publisher_pool(adapter_name, topic)
 
     RedisPublisher.direct_broadcast(
-      fastlane,
-      publisher,
-      pool_size,
-      node_ref,
+      pool_name,
+      adapter_name,
       node_name,
-      from,
       topic,
-      msg
+      message,
+      dispatcher
     )
   end
 
-  @spec select_subscriber(atom, pos_integer, binary) :: atom
-  defp select_subscriber(pubsub_server, redises_count, topic) do
-    RedisSubscriber.server_name(pubsub_server, :erlang.phash2(topic, redises_count))
+  @spec select_subscriber(atom, PubSub.topic()) :: atom
+  defp select_subscriber(pubsub_name, topic) do
+    {:ok, {_adapter, adapter_name}} = Registry.meta(pubsub_name, :pubsub)
+    RedisSubscriber.server_name(pubsub_name, :erlang.phash2(topic, redises_count(adapter_name)))
   end
 
-  @spec select_publisher(atom, pos_integer, binary) :: atom
-  defp select_publisher(pubsub_server, redises_count, topic) do
-    RedisPublisher.pool_name(pubsub_server, :erlang.phash2(topic, redises_count))
+  @spec select_publisher_pool(atom, PubSub.topic()) :: atom
+  defp select_publisher_pool(adapter_name, topic) do
+    RedisPublisher.pool_name(adapter_name, :erlang.phash2(topic, redises_count(adapter_name)))
+  end
+
+  @spec node_name(atom) :: PubSub.node_name()
+  def node_name(adapter_name) do
+    :ets.lookup_element(adapter_name, :node_name, 2)
+  end
+
+  @spec redises_count(atom) :: pos_integer
+  def redises_count(adapter_name) do
+    :ets.lookup_element(adapter_name, :redises_count, 2)
   end
 end

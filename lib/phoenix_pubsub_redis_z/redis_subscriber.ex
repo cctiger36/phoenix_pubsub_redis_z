@@ -1,45 +1,44 @@
 defmodule Phoenix.PubSub.RedisZ.RedisSubscriber do
   @moduledoc false
 
-  alias Phoenix.PubSub.RedisZ.Local
-  alias Redix.PubSub
-
   require Logger
 
   use GenServer
 
+  @type server_name :: atom
   @type t :: %{
-          pubsub_server: atom,
-          node_ref: node,
+          pubsub_name: atom,
+          node_name: atom,
           redix_pid: pid | nil,
           reconnect_timer: :timer.tref() | nil,
-          redis_options: keyword
+          redis_opts: keyword
         }
 
   @reconnect_after_ms 5_000
-  @redix_options [:host, :port, :password, :database]
+  @redix_opts [:host, :port, :password, :database]
 
-  @spec server_name(atom, non_neg_integer) :: atom
-  def server_name(pubsub_server, shard) do
-    Module.concat(["#{pubsub_server}.RedisZ.Subscriber#{shard}"])
+  @spec server_name(atom, non_neg_integer) :: server_name
+  def server_name(pubsub_name, shard) do
+    Module.concat(["#{pubsub_name}.RedisZ.Subscriber#{shard}"])
   end
 
-  @spec start_link(atom, keyword) :: GenServer.on_start()
-  def start_link(server_name, options) do
+  @spec start_link(keyword) :: GenServer.on_start()
+  def start_link(opts) do
+    {server_name, opts} = Keyword.pop(opts, :server_name)
     Logger.info("Starts pubsub subscriber: #{server_name}")
-    GenServer.start_link(__MODULE__, options, name: server_name)
+    GenServer.start_link(__MODULE__, opts, name: server_name)
   end
 
   @impl GenServer
-  def init(options) do
+  def init(opts) do
     Process.flag(:trap_exit, true)
 
     state = %{
-      pubsub_server: options[:pubsub_server],
-      node_ref: options[:node_ref],
+      pubsub_name: opts[:pubsub_name],
+      node_name: opts[:node_name],
       redix_pid: nil,
       reconnect_timer: nil,
-      redis_options: options[:redis_options]
+      redis_opts: opts[:redis_opts]
     }
 
     {:ok, establish_conn(state)}
@@ -47,12 +46,12 @@ defmodule Phoenix.PubSub.RedisZ.RedisSubscriber do
 
   @impl GenServer
   def handle_call({:subscribe, _pid, topic}, _from, state) do
-    {:ok, _} = PubSub.subscribe(state.redix_pid, topic, self())
+    {:ok, _reference} = Redix.PubSub.subscribe(state.redix_pid, topic, self())
     {:reply, :ok, state}
   end
 
   def handle_call({:unsubscribe, _pid, topic}, _from, state) do
-    :ok = PubSub.unsubscribe(state.redix_pid, topic, self())
+    :ok = Redix.PubSub.unsubscribe(state.redix_pid, topic, self())
     {:reply, :ok, state}
   end
 
@@ -61,19 +60,22 @@ defmodule Phoenix.PubSub.RedisZ.RedisSubscriber do
     {:noreply, establish_conn(%{state | reconnect_timer: nil})}
   end
 
-  def handle_info({:redix_pubsub, redix_pid, _, :subscribed, _}, %{redix_pid: redix_pid} = state) do
-    {:noreply, state}
-  end
-
   def handle_info(
-        {:redix_pubsub, redix_pid, _, :unsubscribed, _},
+        {:redix_pubsub, redix_pid, _reference, :subscribed, _},
         %{redix_pid: redix_pid} = state
       ) do
     {:noreply, state}
   end
 
   def handle_info(
-        {:redix_pubsub, redix_pid, _, :disconnected, %{reason: reason}},
+        {:redix_pubsub, redix_pid, _reference, :unsubscribed, _},
+        %{redix_pid: redix_pid} = state
+      ) do
+    {:noreply, state}
+  end
+
+  def handle_info(
+        {:redix_pubsub, redix_pid, _reference, :disconnected, %{error: %{reason: reason}}},
         %{redix_pid: redix_pid} = state
       ) do
     Logger.error(
@@ -84,15 +86,17 @@ defmodule Phoenix.PubSub.RedisZ.RedisSubscriber do
   end
 
   def handle_info(
-        {:redix_pubsub, redix_pid, _, :message, %{payload: bin_msg}},
-        %{redix_pid: redix_pid} = state
+        {:redix_pubsub, redix_pid, _reference, :message, %{payload: bin_msg}},
+        %{redix_pid: redix_pid, node_name: node_name, pubsub_name: pubsub_name} = state
       ) do
-    {remote_node_ref, fastlane, pool_size, from, topic, msg} = :erlang.binary_to_term(bin_msg)
+    case :erlang.binary_to_term(bin_msg) do
+      {mode, target_node, topic, message, dispatcher}
+      when mode == :only and target_node == node_name
+      when mode == :except and target_node != node_name ->
+        Phoenix.PubSub.local_broadcast(pubsub_name, topic, message, dispatcher)
 
-    if remote_node_ref == state.node_ref do
-      Local.broadcast(fastlane, state.pubsub_server, pool_size, from, topic, msg)
-    else
-      Local.broadcast(fastlane, state.pubsub_server, pool_size, :none, topic, msg)
+      _ ->
+        :ignore
     end
 
     {:noreply, state}
@@ -116,10 +120,10 @@ defmodule Phoenix.PubSub.RedisZ.RedisSubscriber do
 
   @spec establish_conn(t) :: t
   defp establish_conn(state) do
-    redis_options = Keyword.take(state.redis_options, @redix_options)
-    options = [{:sync_connect, true} | redis_options]
+    redis_opts = Keyword.take(state.redis_opts, @redix_opts)
+    opts = [{:sync_connect, true} | redis_opts]
 
-    case PubSub.start_link(options) do
+    case Redix.PubSub.start_link(opts) do
       {:ok, redix_pid} -> %{state | redix_pid: redix_pid}
       {:error, _} -> establish_failed(state)
     end

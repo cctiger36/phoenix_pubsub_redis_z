@@ -1,7 +1,7 @@
 ---
 name: test
 
-"on": push
+on: push
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -11,9 +11,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        elixir: ['1.9.x', '1.10.x']
-        erlang: ['21.x', '22.x']
-        os: [ubuntu-latest]
+        elixir: ['1.11.x', '1.12.x']
+        erlang: ['23.x', '24.x']
+        os: [ubuntu-18.04]
     services:
       redis:
         image: redis
@@ -21,7 +21,7 @@ jobs:
           - 6379:6379
     name: test
     steps:
-      - uses: actions/setup-elixir@v1.2.0
+      - uses: actions/setup-elixir@v1
         with:
           elixir-version: ${{ matrix.elixir }}
           otp-version: ${{ matrix.erlang }}
@@ -37,5 +37,7 @@ jobs:
       - name: Lint & test
         run: |
           mix "do" local.hex --force, local.rebar --force
-          mix "do" deps.get, cotton.lint
-          mix coveralls.github
+          mix deps.get
+          mix credo
+          mix dialyzer
+          mix coveralls.github test/*

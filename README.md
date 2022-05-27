@@ -8,11 +8,11 @@ Yet another Redis PubSub adapter for Phoenix. Supports sharding across multiple 
 
 ## Why made another one?
 
-The original [phoenix_pubsub_redis](https://github.com/phoenixframework/phoenix_pubsub_redis) will subscribe to the same topic (the namespace) from all the Phoenix nodes. So whatever you publish, the data will be sent to all of them. If there are hundreds of Phoenix nodes, the CPU usage and the network usage of the Redis will become incredibly high and impossible to scale it.
+The original [phoenix_pubsub_redis](https://github.com/phoenixframework/phoenix_pubsub_redis) will subscribe to a single topic (the namespace) from all Phoenix nodes. Whatever you publish, the message will be sent to all your nodes. So when you have a large number of nodes, it will become very inefficient. The single Redis instance will become the bottleneck. And because there is only a single topic, it is impossible to scale it.
 
-So we have made this adapter, which will subscribe to the specific topic of the Phoenix channel when it is creating, and unsubscribe to that topic after the Phoenix channel is shut down. If you publish something to a topic, the data will only be sent to the nodes which have the Phoenix channels subscribing to that topic.
+So we have made this adapter, which will subscribe to the specific topic of the Phoenix channel when creating it, and unsubscribe to that topic after the Phoenix channel is shut down. If you publish something to a topic, the message will only be sent to the nodes which have the Phoenix channels subscribing to that topic.
 
-Also, we have added a feature for sharding, base on the topics. You can simply do a load balancing by adding Redis nodes.
+Also, we have added a feature for sharding, based on the topics. You can simply do a load balancing by adding extra Redis instances.
 
 ## Installation
 
@@ -20,7 +20,7 @@ Also, we have added a feature for sharding, base on the topics. You can simply d
 # mix.exs
 def deps do
   [
-    {:phoenix_pubsub_redis_z, "~> 0.3.0"}
+    {:phoenix_pubsub_redis_z, "~> 0.4"}
   ]
 end
 ```
@@ -45,6 +45,6 @@ config :my_app, MyApp.Endpoint,
 | `:name`                   | The required name to register the PubSub processes, ie: `MyApp.PubSub` |          |
 | `:redis_urls`             | The required redis-server URL list                                     |          |
 | `:node_name`              | The name of the node                                                   | `node()` |
-| `:pool_size`              | The pool size of local pubsub server                                   | 1        |
+| `:local_pool_size`        | The pool size of local subscription server                             | 2        |
 | `:publisher_pool_size`    | The pool size of redis publish connections for each redis-server       | 8        |
-| `:publisher_max_overflow` | Maximum number of publish connections created if pool is empty         | 0        |
+| `:compression_level`      | Compression level applied to serialized terms (0 - none, 9 - highest)  | 0        |

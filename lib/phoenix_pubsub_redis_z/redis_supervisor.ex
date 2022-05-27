@@ -8,37 +8,40 @@ defmodule Phoenix.PubSub.RedisZ.RedisSupervisor do
   @spec start_link(keyword) :: Supervisor.on_start()
   def start_link(options), do: Supervisor.start_link(__MODULE__, options)
 
-  @spec init(keyword) :: {:ok, {:supervisor.sup_flags(), [:supervisor.child_spec()]}} | :ignore
+  @impl Supervisor
   def init(options) do
-    pubsub_server = options[:pubsub_server]
+    pubsub_name = options[:pubsub_name]
 
     children =
       options[:redises]
       |> Enum.with_index()
-      |> Enum.map(fn {redis_options, shard} ->
-        subscriber_name = RedisSubscriber.server_name(pubsub_server, shard)
-        publisher_name = RedisPublisher.pool_name(pubsub_server, shard)
-        subscriber_options = Keyword.put(options, :redis_options, redis_options)
+      |> Enum.map(fn {redis_opts, shard} ->
+        subscriber_name = RedisSubscriber.server_name(pubsub_name, shard)
 
-        publisher_pool_options = [
+        subscriber_options =
+          options
+          |> Keyword.put(:redis_opts, redis_opts)
+          |> Keyword.put(:server_name, subscriber_name)
+
+        publisher_name = RedisPublisher.pool_name(options[:adapter_name], shard)
+
+        publisher_pool_opts = [
           name: {:local, publisher_name},
           worker_module: Redix,
-          size: options[:publisher_pool_size],
-          max_overflow: options[:publisher_max_overflow]
+          size: options[:publisher_pool_size]
         ]
 
         shard_children = [
-          worker(RedisSubscriber, [subscriber_name, subscriber_options]),
-          :poolboy.child_spec(publisher_name, publisher_pool_options, redis_options)
+          {RedisSubscriber, subscriber_options},
+          :poolboy.child_spec(publisher_name, publisher_pool_opts, redis_opts)
         ]
 
-        supervisor(
-          Supervisor,
-          [shard_children, [strategy: :one_for_all]],
-          id: {__MODULE__, shard}
-        )
+        %{
+          id: {__MODULE__, shard},
+          start: {Supervisor, :start_link, [shard_children, [strategy: :one_for_all]]}
+        }
       end)
 
-    supervise(children, strategy: :one_for_one)
+    Supervisor.init(children, strategy: :one_for_one)
   end
 end

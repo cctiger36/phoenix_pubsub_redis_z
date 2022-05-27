@@ -10,45 +10,39 @@ defmodule Phoenix.PubSub.RedisZ.GC do
   @type t :: %{
           topics: atom,
           pids: atom,
-          pubsub_server: atom,
-          redises_count: pos_integer
+          pubsub_name: atom
         }
 
-  defdelegate down(gc_server, pid), to: Phoenix.PubSub.GC
-  defdelegate handle_call(request, from, state), to: Phoenix.PubSub.GC
-
-  @spec start_link(atom, atom, atom, pos_integer) :: GenServer.on_start()
-  def start_link(server_name, local_name, pubsub_server, redises_count) do
-    Logger.info("Starts pubsub gc: #{server_name}")
-
-    GenServer.start_link(
-      __MODULE__,
-      {server_name, local_name, pubsub_server, redises_count},
-      name: server_name
-    )
+  @spec start_link(keyword) :: GenServer.on_start()
+  def start_link(opts) do
+    Logger.info("Starts pubsub_redis_z gc: #{opts[:server_name]}")
+    GenServer.start_link(__MODULE__, opts, name: opts[:server_name])
   end
 
-  @spec init({atom, atom, atom, pos_integer}) :: {:ok, t}
-  def init({server_name, local_name, pubsub_server, redises_count}) do
+  @impl GenServer
+  def init(opts) do
     {:ok,
      %{
-       topics: local_name,
-       pids: server_name,
-       pubsub_server: pubsub_server,
-       redises_count: redises_count
+       topics: opts[:local_name],
+       pids: opts[:server_name],
+       pubsub_name: opts[:pubsub_name]
      }}
   end
 
-  @spec handle_cast(term, t) :: {:noreply, t}
+  def down(gc_server, pid) when is_atom(gc_server) do
+    GenServer.cast(gc_server, {:down, pid})
+  end
+
+  @impl GenServer
   def handle_cast({:down, pid}, state) do
     try do
       topics = :ets.lookup_element(state.pids, pid, 2)
 
       for topic <- topics do
-        true = :ets.match_delete(state.topics, {topic, {pid, :_}})
+        true = :ets.match_delete(state.topics, {topic, pid})
 
         if :ets.match_object(state.topics, {topic, :_}, 1) == :"$end_of_table" do
-          :ok = RedisDispatcher.unsubscribe(state.pubsub_server, state.redises_count, pid, topic)
+          :ok = RedisDispatcher.unsubscribe(state.pubsub_name, pid, topic)
         end
       end
 
