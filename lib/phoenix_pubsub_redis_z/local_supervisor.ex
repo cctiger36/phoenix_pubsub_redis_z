@@ -1,60 +1,42 @@
 defmodule Phoenix.PubSub.RedisZ.LocalSupervisor do
   @moduledoc false
 
-  alias Phoenix.PubSub.RedisZ
-  alias Phoenix.PubSub.RedisZ.{GC, Local, RedisDispatcher}
+  alias Phoenix.PubSub.RedisZ.{GC, Local}
 
   use Supervisor
 
   @spec start_link(keyword) :: Supervisor.on_start()
-  def start_link(options), do: Supervisor.start_link(__MODULE__, options)
+  def start_link(opts), do: Supervisor.start_link(__MODULE__, opts)
 
-  @spec init(keyword) :: {:ok, {:supervisor.sup_flags(), [:supervisor.child_spec()]}} | :ignore
-  def init(options) do
-    server = options[:server_name]
-    ^server = :ets.new(server, [:set, :named_table, read_concurrency: true])
-
-    true =
-      :ets.insert(server, [
-        {:subscribe, Local, [server, options[:pool_size], options[:redises_count]]},
-        {:unsubscribe, Local, [server, options[:pool_size], options[:redises_count]]},
-        {:broadcast, RedisDispatcher,
-         [
-           options[:fastlane],
-           server,
-           options[:pool_size],
-           options[:redises_count],
-           options[:node_ref]
-         ]},
-        {:direct_broadcast, RedisDispatcher,
-         [
-           options[:fastlane],
-           server,
-           options[:pool_size],
-           options[:redises_count],
-           options[:node_ref]
-         ]},
-        {:node_name, RedisZ, [options[:node_name]]}
-      ])
+  @impl Supervisor
+  def init(opts) do
+    pubsub_name = opts[:pubsub_name]
+    table_name = pools_table_name(pubsub_name)
+    :ets.new(table_name, [:set, :named_table, read_concurrency: true])
 
     children =
-      for shard <- 0..(options[:pool_size] - 1) do
-        local_shard_name = Local.local_name(server, shard)
-        gc_shard_name = Local.gc_name(server, shard)
-        true = :ets.insert(server, {shard, {local_shard_name, gc_shard_name}})
+      for shard <- 0..(opts[:pool_size] - 1) do
+        local_shard_name = Local.local_name(pubsub_name, shard)
+        gc_shard_name = Local.gc_name(pubsub_name, shard)
+        true = :ets.insert(table_name, {shard, {local_shard_name, gc_shard_name}})
 
         shard_children = [
-          worker(GC, [gc_shard_name, local_shard_name, server, options[:redises_count]]),
-          worker(Local, [local_shard_name, gc_shard_name])
+          {GC,
+           [server_name: gc_shard_name, local_name: local_shard_name, pubsub_name: pubsub_name]},
+          {Local, [server_name: local_shard_name, gc: gc_shard_name]}
         ]
 
-        supervisor(
-          Supervisor,
-          [shard_children, [strategy: :one_for_all]],
-          id: {__MODULE__, shard}
-        )
+        %{
+          id: {__MODULE__, shard},
+          start: {Supervisor, :start_link, [shard_children, [strategy: :one_for_all]]}
+        }
       end
 
-    supervise(children, strategy: :one_for_one)
+    Supervisor.init(children, strategy: :one_for_one)
+  end
+
+  @spec pools_table_name(atom) :: atom
+  def pools_table_name(pubsub_name) do
+    :"#{pubsub_name}.LocalPool"
   end
 end

@@ -4,7 +4,7 @@ defmodule PhoenixPubsubRedisZ.MixProject do
   def project do
     [
       app: :phoenix_pubsub_redis_z,
-      version: "0.3.3",
+      version: "0.4.0",
       elixir: "~> 1.7",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -40,11 +40,13 @@ defmodule PhoenixPubsubRedisZ.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ex_doc, "~> 0.19", only: :dev, runtime: false},
-      {:inner_cotton, "~> 0.3", only: [:dev, :test]},
-      {:phoenix_pubsub, "~> 2.0"},
+      {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.1", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.28", only: :dev, runtime: false},
+      {:excoveralls, "~> 0.14"},
+      {:phoenix_pubsub, "~> 2.1"},
       {:poolboy, "~> 1.5"},
-      {:redix, "~> 0.9"}
+      {:redix, "~> 1.1"}
     ]
   end
 

@@ -1,7 +1,7 @@
 defmodule Phoenix.PubSub.RedisZ.Local do
   @moduledoc false
 
-  alias Phoenix.PubSub.RedisZ.{GC, RedisDispatcher}
+  alias Phoenix.PubSub.RedisZ.{GC, LocalSupervisor, RedisDispatcher}
 
   require Logger
 
@@ -12,55 +12,81 @@ defmodule Phoenix.PubSub.RedisZ.Local do
           gc: atom
         }
 
-  defdelegate broadcast(fastlane, pubsub_server, pool_size, from, topic, msg),
-    to: Phoenix.PubSub.Local
-
-  defdelegate handle_call(request, from, state), to: Phoenix.PubSub.Local
-  defdelegate init(args), to: Phoenix.PubSub.Local
-  defdelegate list(pubsub_server, shard), to: Phoenix.PubSub.Local
-  defdelegate subscribers(pubsub_server, topic, shard), to: Phoenix.PubSub.Local
-  defdelegate subscribers_with_fastlanes(pubsub_server, topic, shard), to: Phoenix.PubSub.Local
-  defdelegate subscription(pubsub_server, pool_size, pid), to: Phoenix.PubSub.Local
-
-  @spec start_link(atom, atom) :: GenServer.on_start()
-  def start_link(server_name, gc_name) do
-    Logger.info("Starts pubsub local: #{server_name}")
-    GenServer.start_link(__MODULE__, {server_name, gc_name}, name: server_name)
+  @spec local_name(atom, non_neg_integer) :: atom
+  def local_name(pubsub_name, shard) do
+    Module.concat(["#{pubsub_name}.RedisZ.Local#{shard}"])
   end
 
-  @spec subscribe(atom, pos_integer, pos_integer, pid, binary, keyword) :: :ok
-  def subscribe(pubsub_server, pool_size, redises_count, pid, topic, opts \\ [])
-      when is_atom(pubsub_server) do
+  @spec gc_name(atom, non_neg_integer) :: atom
+  def gc_name(pubsub_name, shard) do
+    Module.concat(["#{pubsub_name}.RedisZ.GC#{shard}"])
+  end
+
+  @spec start_link(keyword) :: GenServer.on_start()
+  def start_link(opts) do
+    Logger.info("Starts pubsub_redis_z local: #{opts[:server_name]}")
+    GenServer.start_link(__MODULE__, opts, name: opts[:server_name])
+  end
+
+  @impl GenServer
+  def init(opts) do
+    :ets.new(opts[:server_name], [
+      :duplicate_bag,
+      :named_table,
+      :public,
+      read_concurrency: true,
+      write_concurrency: true
+    ])
+
+    :ets.new(opts[:gc], [
+      :duplicate_bag,
+      :named_table,
+      :public,
+      read_concurrency: true,
+      write_concurrency: true
+    ])
+
+    Process.flag(:trap_exit, true)
+    {:ok, %{monitors: %{}, gc: opts[:gc]}}
+  end
+
+  @spec subscribe(atom, pid, binary) :: :ok
+  def subscribe(pubsub_name, pid, topic)
+      when is_atom(pubsub_name) do
+    {:ok, {_adapter, adapter_name}} = Registry.meta(pubsub_name, :pubsub)
+
     {local, gc} =
       pid
-      |> :erlang.phash2(pool_size)
-      |> pools_for_shard(pubsub_server)
+      |> :erlang.phash2(pool_size(adapter_name))
+      |> pools_for_shard(pubsub_name)
 
-    :ok = GenServer.call(local, {:monitor, pid, opts})
+    :ok = GenServer.call(local, {:monitor, pid})
 
     if :ets.match_object(local, {topic, :_}, 1) == :"$end_of_table" do
-      :ok = RedisDispatcher.subscribe(pubsub_server, redises_count, pid, topic)
+      :ok = RedisDispatcher.subscribe(pubsub_name, pid, topic)
     end
 
     true = :ets.insert(gc, {pid, topic})
-    true = :ets.insert(local, {topic, {pid, opts[:fastlane]}})
+    true = :ets.insert(local, {topic, pid})
 
     :ok
   end
 
-  @spec unsubscribe(atom, pos_integer, pos_integer, pid, binary) :: :ok
-  def unsubscribe(pubsub_server, pool_size, redises_count, pid, topic)
-      when is_atom(pubsub_server) do
+  @spec unsubscribe(atom, pid, binary) :: :ok
+  def unsubscribe(pubsub_name, pid, topic)
+      when is_atom(pubsub_name) do
+    {:ok, {_adapter, adapter_name}} = Registry.meta(pubsub_name, :pubsub)
+
     {local, gc} =
       pid
-      |> :erlang.phash2(pool_size)
-      |> pools_for_shard(pubsub_server)
+      |> :erlang.phash2(pool_size(adapter_name))
+      |> pools_for_shard(pubsub_name)
 
     true = :ets.match_delete(gc, {pid, topic})
-    true = :ets.match_delete(local, {topic, {pid, :_}})
+    true = :ets.match_delete(local, {topic, pid})
 
     if :ets.match_object(local, {topic, :_}, 1) == :"$end_of_table" do
-      :ok = RedisDispatcher.unsubscribe(pubsub_server, redises_count, pid, topic)
+      :ok = RedisDispatcher.unsubscribe(pubsub_name, pid, topic)
     end
 
     case :ets.select_count(gc, [{{pid, :_}, [], [true]}]) do
@@ -69,17 +95,26 @@ defmodule Phoenix.PubSub.RedisZ.Local do
     end
   end
 
-  @spec local_name(atom, non_neg_integer) :: atom
-  def local_name(pubsub_server, shard) do
-    Module.concat(["#{pubsub_server}.RedisZ.Local#{shard}"])
+  def subscribers(pubsub_name, topic, shard) when is_atom(pubsub_name) do
+    try do
+      shard
+      |> local_for_shard(pubsub_name)
+      |> :ets.lookup_element(topic, 2)
+    catch
+      :error, :badarg -> []
+    end
   end
 
-  @spec gc_name(atom, non_neg_integer) :: atom
-  def gc_name(pubsub_server, shard) do
-    Module.concat(["#{pubsub_server}.RedisZ.GC#{shard}"])
+  @impl GenServer
+  def handle_call({:monitor, pid}, _from, state) do
+    {:reply, :ok, put_new_monitor(state, pid)}
   end
 
-  @spec handle_info(term, t) :: {:noreply, t}
+  def handle_call({:demonitor, pid}, _from, state) do
+    {:reply, :ok, drop_monitor(state, pid)}
+  end
+
+  @impl GenServer
   def handle_info({:DOWN, _ref, _type, pid, _info}, state) do
     GC.down(state.gc, pid)
     {:noreply, drop_monitor(state, pid)}
@@ -88,9 +123,18 @@ defmodule Phoenix.PubSub.RedisZ.Local do
   def handle_info(_, state), do: {:noreply, state}
 
   @spec pools_for_shard(non_neg_integer, atom) :: {atom, atom}
-  defp pools_for_shard(shard, pubsub_server) do
-    {_, _} = servers = :ets.lookup_element(pubsub_server, shard, 2)
+  defp pools_for_shard(shard, pubsub_name) do
+    table_name = LocalSupervisor.pools_table_name(pubsub_name)
+    {_, _} = servers = :ets.lookup_element(table_name, shard, 2)
     servers
+  end
+
+  @spec put_new_monitor(t, pid) :: t
+  defp put_new_monitor(%{monitors: monitors} = state, pid) do
+    case Map.fetch(monitors, pid) do
+      {:ok, _ref} -> state
+      :error -> %{state | monitors: Map.put(monitors, pid, Process.monitor(pid))}
+    end
   end
 
   @spec drop_monitor(t, pid) :: t
@@ -103,5 +147,16 @@ defmodule Phoenix.PubSub.RedisZ.Local do
       :error ->
         state
     end
+  end
+
+  @spec pool_size(atom) :: pos_integer
+  defp pool_size(adapter_name) do
+    :ets.lookup_element(adapter_name, :local_pool_size, 2)
+  end
+
+  @spec local_for_shard(non_neg_integer, atom) :: atom
+  defp local_for_shard(shard, pubsub_name) do
+    {local_server, _gc_server} = pools_for_shard(shard, pubsub_name)
+    local_server
   end
 end
