@@ -27,15 +27,31 @@ end
 
 ## Usage
 
-Add it to your Endpoint's config:
+Add it to your Application's Supervisor tree:
 
 ```elixir
-config :my_app, MyApp.Endpoint,
-  pubsub: [
+# application.ex
+children = [
+  {
+    Phoenix.PubSub,
     name: MyApp.PubSub,
     adapter: Phoenix.PubSub.RedisZ,
     redis_urls: ["redis://redis01:6379/0", "redis://redis02:6379/0"]
-  ]
+  }
+  # ...
+]
+```
+
+Use the `ChannelDecorator` in your channel entrypoint:
+```elixir
+# lib/xxx_web.ex
+def channel do
+  quote do
+    use Phoenix.Channel
+    use Phoenix.PubSub.RedisZ.ChannelDecorator  # <= add this line
+    # ...
+  end
+end
 ```
 
 ### Options
